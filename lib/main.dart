@@ -145,20 +145,43 @@ class _HomePageState extends State<HomePage> {
       // Normalize text: remove extra spaces and convert to lowercase
       text = text.trim().toLowerCase();
 
-      // Handle common Indonesian number formats
-      String normalizedText = text
-          .replaceAll(RegExp(r'(seratus|se ratus)'), '100')
-          .replaceAll(RegExp(r'(seribu|se ribu)'), '1000')
-          .replaceAll(RegExp(r'(sejuta|se juta)'), '1000000')
-          .replaceAll(RegExp(r'\s+(ribu|rbu)\b'), '000')
-          .replaceAll(RegExp(r'\s+(juta|jt)\b'), '000000')
-          .replaceAll(RegExp(r'\s+(ratus|rt)\b'), '00');
+      // Peta kata bilangan ke angka
+      Map<String, String> angkaMap = {
+        'nol': '0',
+        'satu': '1',
+        'dua': '2',
+        'tiga': '3',
+        'empat': '4',
+        'lima': '5',
+        'enam': '6',
+        'tujuh': '7',
+        'delapan': '8',
+        'sembilan': '9',
+        'sepuluh': '10',
+        'sebelas': '11',
+        'seratus': '100',
+        'se ratus': '100',
+        'seribu': '1000',
+        'se ribu': '1000',
+        'sejuta': '1000000',
+        'se juta': '1000000',
+      };
 
-      // Improved regex to capture Indonesian number formats
+      // Ganti kata angka ke digit
+      angkaMap.forEach((key, value) {
+        text = text.replaceAll(RegExp('\\b$key\\b'), value);
+      });
+
+      // Gabungkan angka dan satuan
+      text = text.replaceAllMapped(RegExp(r'(\d+)\s*(ribu|rbu)'), (m) => '${m[1]}000');
+      text = text.replaceAllMapped(RegExp(r'(\d+)\s*(juta|jt)'), (m) => '${m[1]}000000');
+      text = text.replaceAllMapped(RegExp(r'(\d+)\s*(ratus|rt)'), (m) => '${m[1]}00');
+
+      // Ambil angka terakhir (biasanya jumlah uang)
       final RegExp amountRegex = RegExp(
           r'(\d{1,3}(?:\.?\d{3})*(?:,\d{1,2})?|\d+(?:,\d{1,2})?)'
       );
-      final amountMatches = amountRegex.allMatches(normalizedText);
+      final amountMatches = amountRegex.allMatches(text);
 
       if (amountMatches.isEmpty) {
         ScaffoldMessenger.of(context as BuildContext).showSnackBar(
@@ -238,17 +261,10 @@ class _HomePageState extends State<HomePage> {
       ),
       body: Column(
         children: [
-          const SizedBox(height: 10),
-          ElevatedButton.icon(
-            icon: Icon(_isListening ? Icons.mic_off : Icons.mic),
-            label: Text(_isListening ? 'Stop Listening' : 'Start Speaking'),
-            onPressed: _isListening ? _stopListening : _startListening,
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Text('Heard: $_lastWords'),
-          ),
-          const Divider(),
+
+
+
+
           Expanded(
             child: _expenses.isEmpty
                 ? const Center(child: Text('No expenses yet.'))
@@ -263,7 +279,18 @@ class _HomePageState extends State<HomePage> {
                 );
               },
             ),
-          )
+          ),
+          const Divider(),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text('Dengar: $_lastWords'),
+          ),
+          ElevatedButton.icon(
+            icon: Icon(_isListening ? Icons.mic_off : Icons.mic),
+            label: Text(_isListening ? 'Stop Listening' : 'Start Speaking'),
+            onPressed: _isListening ? _stopListening : _startListening,
+          ),
+          const SizedBox(height: 10),
         ],
       ),
     );
