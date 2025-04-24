@@ -80,9 +80,10 @@ class ExpenseDatabase {
 
   Future<List<Expense>> getExpenses() async {
     final db = await instance.database;
-    final result = await db.query('expenses', orderBy: 'date DESC');
-    return result.map((e) => Expense.fromMap(e)).toList();
+    final result = await db.query('expenses');
+    return result.map((json) => Expense.fromMap(json)).toList();
   }
+
 
   // Tambahkan method update
   Future<void> updateExpense(Expense expense) async {
@@ -144,12 +145,6 @@ class _HomePageState extends State<HomePage> {
     _loadExpenses();
   }
 
-  Future<void> _loadExpenses() async {
-    final data = await ExpenseDatabase.instance.getExpenses();
-    setState(() {
-      _expenses = data;
-    });
-  }
 
 
   void _startListening() async {
@@ -203,7 +198,7 @@ class _HomePageState extends State<HomePage> {
       ),
     );
 
-    if (result == true) {
+    if (result.isTapConfirmButton) {
       final updatedExpense = Expense(
         id: expense.id,
         description: descriptionController.text,
@@ -212,16 +207,22 @@ class _HomePageState extends State<HomePage> {
       );
 
       await ExpenseDatabase.instance.updateExpense(updatedExpense);
-      await _loadExpenses(); // <- Pastikan ini ada
 
-      ArtSweetAlert.show(
-        context: context,
-        artDialogArgs: ArtDialogArgs(
-          type: ArtSweetAlertType.success,
-          title: "Berhasil!",
-          text: "Pengeluaran telah diperbarui",
-        ),
-      );
+      // Perbaikan: Gunakan setState untuk memperbarui UI
+      await _loadExpenses(); // Panggil di luar setState
+
+
+      // Tampilkan notifikasi sukses
+      if (mounted) {
+        ArtSweetAlert.show(
+          context: context,
+          artDialogArgs: ArtDialogArgs(
+            type: ArtSweetAlertType.success,
+            title: "Berhasil!",
+            text: "Pengeluaran telah diperbarui",
+          ),
+        );
+      }
     }
   }
 
@@ -238,18 +239,34 @@ class _HomePageState extends State<HomePage> {
       ),
     );
 
-    if (result == true) {
+    if (result.isTapConfirmButton) {
       await ExpenseDatabase.instance.deleteExpense(id);
-      await _loadExpenses(); // <- Penting
 
-      ArtSweetAlert.show(
-        context: context,
-        artDialogArgs: ArtDialogArgs(
-          type: ArtSweetAlertType.success,
-          title: "Terhapus!",
-          text: "Pengeluaran telah dihapus",
-        ),
-      );
+      await _loadExpenses();
+
+      // Tampilkan notifikasi sukses
+      if (mounted) {
+        ArtSweetAlert.show(
+          context: context,
+          artDialogArgs: ArtDialogArgs(
+            type: ArtSweetAlertType.success,
+            title: "Terhapus!",
+            text: "Pengeluaran telah dihapus",
+          ),
+        );
+      }
+    }
+  }
+
+// Perbaikan metode _loadExpenses
+  Future<void> _loadExpenses() async {
+    print("🔄 Memuat ulang data...");
+    final data = await ExpenseDatabase.instance.getExpenses();
+    print("✅ Dapat ${data.length} data");
+    if (mounted) {
+      setState(() {
+        _expenses = data;
+      });
     }
   }
 
@@ -342,7 +359,8 @@ class _HomePageState extends State<HomePage> {
       );
 
       await ExpenseDatabase.instance.addExpense(expense);
-      _loadExpenses(); // Refresh list
+      await _loadExpenses(); // Panggil di luar setState
+
 
       ScaffoldMessenger.of(context as BuildContext).showSnackBar(
         SnackBar(content: Text('Disimpan: $description - Rp${amount.toStringAsFixed(0).replaceAllMapped(
@@ -401,7 +419,7 @@ class _HomePageState extends State<HomePage> {
             label: Text(_isListening ? 'Stop' : 'Ngomong'),
             onPressed: _isListening ? _stopListening : _startListening,
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 50),
         ],
       ),
     );

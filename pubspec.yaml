@@ -42,6 +42,7 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.2
   art_sweetalert: ^0.0.5
+  fluttertoast: ^8.2.12
 
 
 
