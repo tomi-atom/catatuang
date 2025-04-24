@@ -1,16 +1,23 @@
+import 'package:art_sweetalert/art_sweetalert.dart';
 import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
-import 'package:path/path.dart';
+import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
+import 'package:intl/intl.dart'; // Tambahkan ini
+import 'package:intl/date_symbol_data_local.dart'; // Tambahkan ini
 
-// ===== Model =====
 class Expense {
   final int? id;
   final String description;
   final double amount;
   final DateTime date;
 
-  Expense({this.id, required this.description, required this.amount, required this.date});
+  Expense({
+    this.id,
+    required this.description,
+    required this.amount,
+    required this.date,
+  });
 
   Map<String, dynamic> toMap() {
     return {
@@ -46,7 +53,7 @@ class ExpenseDatabase {
 
   Future<Database> _initDB(String filePath) async {
     final dbPath = await getDatabasesPath();
-    final path = join(dbPath, filePath);
+    final path = p.join(dbPath, filePath);
 
     return await openDatabase(
       path,
@@ -76,10 +83,33 @@ class ExpenseDatabase {
     final result = await db.query('expenses', orderBy: 'date DESC');
     return result.map((e) => Expense.fromMap(e)).toList();
   }
+
+  // Tambahkan method update
+  Future<void> updateExpense(Expense expense) async {
+    final db = await instance.database;
+    await db.update(
+      'expenses',
+      expense.toMap(),
+      where: 'id = ?',
+      whereArgs: [expense.id],
+    );
+  }
+
+  // Tambahkan method delete
+  Future<void> deleteExpense(int id) async {
+    final db = await instance.database;
+    await db.delete(
+      'expenses',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
 }
 
 // ===== UI & Logic =====
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('id_ID', null); // Inisialisasi locale Indonesia
   runApp(const MyApp());
 }
 
@@ -121,6 +151,7 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+
   void _startListening() async {
     bool available = await _speech.initialize();
     if (available) {
@@ -138,6 +169,88 @@ class _HomePageState extends State<HomePage> {
     await _speech.stop();
     setState(() => _isListening = false);
     _processSpeech(_lastWords);
+  }
+  void _showEditDialog(Expense expense) async {
+    final descriptionController = TextEditingController(text: expense.description);
+    final amountController = TextEditingController(text: expense.amount.toString());
+    final dateController = TextEditingController(
+      text: DateFormat('yyyy-MM-dd').format(expense.date),
+    );
+
+    final result = await ArtSweetAlert.show(
+      context: context,
+      artDialogArgs: ArtDialogArgs(
+        type: ArtSweetAlertType.question,
+        title: "Edit Pengeluaran",
+        confirmButtonText: "Simpan",
+        cancelButtonText: "Batal",
+        showCancelBtn: true,
+        customColumns: [
+          TextField(
+            controller: descriptionController,
+            decoration: const InputDecoration(labelText: 'Deskripsi'),
+          ),
+          TextField(
+            controller: amountController,
+            decoration: const InputDecoration(labelText: 'Jumlah'),
+            keyboardType: TextInputType.number,
+          ),
+          TextField(
+            controller: dateController,
+            decoration: const InputDecoration(labelText: 'Tanggal (YYYY-MM-DD)'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true) {
+      final updatedExpense = Expense(
+        id: expense.id,
+        description: descriptionController.text,
+        amount: double.tryParse(amountController.text) ?? 0,
+        date: DateTime.tryParse(dateController.text) ?? DateTime.now(),
+      );
+
+      await ExpenseDatabase.instance.updateExpense(updatedExpense);
+      await _loadExpenses(); // <- Pastikan ini ada
+
+      ArtSweetAlert.show(
+        context: context,
+        artDialogArgs: ArtDialogArgs(
+          type: ArtSweetAlertType.success,
+          title: "Berhasil!",
+          text: "Pengeluaran telah diperbarui",
+        ),
+      );
+    }
+  }
+
+  void _showDeleteDialog(int id) async {
+    final result = await ArtSweetAlert.show(
+      context: context,
+      artDialogArgs: ArtDialogArgs(
+        type: ArtSweetAlertType.warning,
+        title: "Hapus Pengeluaran?",
+        text: "Data yang dihapus tidak dapat dikembalikan",
+        confirmButtonText: "Ya, Hapus",
+        cancelButtonText: "Batal",
+        showCancelBtn: true,
+      ),
+    );
+
+    if (result == true) {
+      await ExpenseDatabase.instance.deleteExpense(id);
+      await _loadExpenses(); // <- Penting
+
+      ArtSweetAlert.show(
+        context: context,
+        artDialogArgs: ArtDialogArgs(
+          type: ArtSweetAlertType.success,
+          title: "Terhapus!",
+          text: "Pengeluaran telah dihapus",
+        ),
+      );
+    }
   }
 
   void _processSpeech(String text) async {
@@ -251,7 +364,7 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Voice Expense Tracker'),
+        title: const Text('Catat Uang Pake Suara'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -261,24 +374,22 @@ class _HomePageState extends State<HomePage> {
       ),
       body: Column(
         children: [
-
-
-
-
           Expanded(
             child: _expenses.isEmpty
-                ? const Center(child: Text('No expenses yet.'))
+                ? const Center(child: Text('Belum ada pengeluaran'))
                 : ListView.builder(
               itemCount: _expenses.length,
               itemBuilder: (context, index) {
                 final e = _expenses[index];
                 return ListTile(
                   title: Text(e.description),
-                  subtitle: Text(e.date.toLocal().toString()),
+                  subtitle: Text(DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(e.date)),
                   trailing: Text('\Rp${e.amount.toStringAsFixed(2)}'),
+                  onTap: () => _showEditDialog(e),
+                  onLongPress: () => _showDeleteDialog(e.id!),
                 );
               },
-            ),
+            )
           ),
           const Divider(),
           Padding(
@@ -287,7 +398,7 @@ class _HomePageState extends State<HomePage> {
           ),
           ElevatedButton.icon(
             icon: Icon(_isListening ? Icons.mic_off : Icons.mic),
-            label: Text(_isListening ? 'Stop Listening' : 'Start Speaking'),
+            label: Text(_isListening ? 'Stop' : 'Ngomong'),
             onPressed: _isListening ? _stopListening : _startListening,
           ),
           const SizedBox(height: 10),
