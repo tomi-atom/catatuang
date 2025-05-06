@@ -72,7 +72,7 @@ class _HomePageState extends State<HomePage> {
   }
   void _showEditDialog(Expense expense) async {
     final descriptionController = TextEditingController(text: expense.description);
-    final amountController = TextEditingController(text: expense.amount.toString());
+    final amountController = TextEditingController(text: expense.amount.toStringAsFixed(0));
     final dateController = TextEditingController(
       text: DateFormat('yyyy-MM-dd').format(expense.date),
     );
@@ -99,6 +99,7 @@ class _HomePageState extends State<HomePage> {
             controller: dateController,
             decoration: const InputDecoration(labelText: 'Tanggal (YYYY-MM-DD)'),
           ),
+          SizedBox(height: 20),
         ],
       ),
     );
@@ -307,7 +308,7 @@ class _HomePageState extends State<HomePage> {
                 return ListTile(
                   title: Text(e.description),
                   subtitle: Text(DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(e.date)),
-                  trailing: Text('\Rp${e.amount.toStringAsFixed(2)}'),
+                  trailing: Text('\Rp${e.amount.toStringAsFixed(0)}'),
                   onTap: () => _showEditDialog(e),
                   onLongPress: () => _showDeleteDialog(e.id!),
                 );
