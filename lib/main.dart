@@ -1,6 +1,11 @@
+import 'dart:io';
+
 import 'package:art_sweetalert/art_sweetalert.dart';
+import 'package:catatuang/temp_expense.dart';
 import 'package:flutter/material.dart';
+import 'package:google_ml_kit/google_ml_kit.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
@@ -178,20 +183,161 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<void> _pickAndProcessImage() async {
+  Future<void> _pickAndCropImage() async {
     final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.camera); // bisa juga .gallery
+    final pickedFile = await picker.pickImage(source: ImageSource.camera);
 
-    if (pickedFile == null) return;
+    if (pickedFile != null) {
+      // Crop gambar
+      final croppedFile = await ImageCropper().cropImage(
+        sourcePath: pickedFile.path,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: 'Potong Struk',
+            toolbarColor: Colors.teal,
+            toolbarWidgetColor: Colors.white,
+            lockAspectRatio: false, // ❗️Boleh atur bebas
+          ),
+          IOSUiSettings(
+            title: 'Potong Struk',
+            aspectRatioLockEnabled: false, // iOS juga bebas atur
+          ),
+        ],
+      );
 
-    final inputImage = InputImage.fromFilePath(pickedFile.path);
-    final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
-    final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
+      if (croppedFile != null) {
+        File imageFile = File(croppedFile.path);
 
-    String scannedText = recognizedText.text.toLowerCase();
+        // Membaca teks dari gambar menggunakan OCR (Google ML Kit)
+        final textRecognizer = GoogleMlKit.vision.textRecognizer();
+        final inputImage = InputImage.fromFile(imageFile);
+        final recognizedText = await textRecognizer.processImage(inputImage);
 
-    _processSpeech(scannedText); // Reuse fungsi yang sudah ada!
+        // Ambil hasil teks OCR
+        String extractedText = recognizedText.text;
+
+        if (extractedText.isNotEmpty) {
+          // Tampilkan teks yang dikenali
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Teks yang dikenali: $extractedText')),
+          );
+
+          // Lakukan proses berbicara menggunakan TTS
+          processOCRText(extractedText);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Tidak ada teks yang dikenali')),
+          );
+        }
+      }
+    }
   }
+  Future<void> processOCRText(String ocrText) async {
+    final lines = ocrText.split('\n');
+    final regex = RegExp(r'^(.+?)\s{1,}(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?|\d+)$');
+
+    List<TempExpense> tempExpenses = [];
+
+    for (var line in lines) {
+      line = line.trim();
+      final match = regex.firstMatch(line);
+
+      if (match != null) {
+        String rawName = match.group(1)!.trim();
+        String rawAmount = match.group(2)!.trim();
+
+        String normalized = rawAmount.replaceAll('.', '').replaceAll(',', '.');
+        double? amount = double.tryParse(normalized);
+
+        if (amount != null) {
+          tempExpenses.add(TempExpense(description: rawName, amount: amount));
+        }
+      }
+    }
+
+    if (tempExpenses.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tidak ada data belanja valid ditemukan')),
+      );
+      return;
+    }
+
+    // Tampilkan preview untuk konfirmasi
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Konfirmasi Data Belanja'),
+          content: StatefulBuilder(
+            builder: (context, setState) {
+              return SizedBox(
+                width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: tempExpenses.length,
+                  itemBuilder: (context, index) {
+                    final item = tempExpenses[index];
+                    return ListTile(
+                      title: TextFormField(
+                        initialValue: item.description,
+                        decoration: const InputDecoration(labelText: 'Nama Barang'),
+                        onChanged: (val) => item.description = val,
+                      ),
+                      subtitle: TextFormField(
+                        initialValue: item.amount.toStringAsFixed(0),
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Harga'),
+                        onChanged: (val) {
+                          double? parsed = double.tryParse(val.replaceAll('.', '').replaceAll(',', '.'));
+                          if (parsed != null) item.amount = parsed;
+                        },
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () {
+                          setState(() {
+                            tempExpenses.removeAt(index);
+                          });
+                        },
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+          actions: [
+            TextButton(
+              child: const Text('Batal'),
+              onPressed: () => Navigator.pop(context),
+            ),
+            ElevatedButton(
+              child: const Text('Simpan'),
+              onPressed: () async {
+                for (var item in tempExpenses) {
+                  await ExpenseDatabase.instance.addExpense(
+                    Expense(
+                      description: item.description,
+                      amount: item.amount,
+                      date: DateTime.now(),
+                    ),
+                  );
+                }
+                await _loadExpenses();
+                Navigator.pop(context);
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Data berhasil disimpan')),
+                );
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+
 
   void _processSpeech(String text) async {
     try {
@@ -343,10 +489,11 @@ class _HomePageState extends State<HomePage> {
             onPressed: _isListening ? _stopListening : _startListening,
           ),
           ElevatedButton.icon(
-            icon: Icon(Icons.camera_alt),
-            label: Text('Foto Struk'),
-            onPressed: _pickAndProcessImage,
+            icon: const Icon(Icons.camera_alt),
+            label: const Text("Foto Struk"),
+            onPressed: _pickAndCropImage,
           ),
+
 
           const SizedBox(height: 50),
         ],
