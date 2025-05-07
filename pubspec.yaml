@@ -43,6 +43,8 @@ dependencies:
   cupertino_icons: ^1.0.2
   art_sweetalert: ^0.0.5
   fluttertoast: ^8.2.12
+  google_mlkit_text_recognition: ^0.15.0
+  image_picker: ^1.1.2
 
 
 

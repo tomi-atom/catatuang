@@ -1,5 +1,7 @@
 import 'package:art_sweetalert/art_sweetalert.dart';
 import 'package:flutter/material.dart';
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 import 'package:sqflite/sqflite.dart';
@@ -176,6 +178,21 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _pickAndProcessImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.camera); // bisa juga .gallery
+
+    if (pickedFile == null) return;
+
+    final inputImage = InputImage.fromFilePath(pickedFile.path);
+    final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
+    final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
+
+    String scannedText = recognizedText.text.toLowerCase();
+
+    _processSpeech(scannedText); // Reuse fungsi yang sudah ada!
+  }
+
   void _processSpeech(String text) async {
     try {
       // Normalize text: remove extra spaces and convert to lowercase
@@ -325,6 +342,12 @@ class _HomePageState extends State<HomePage> {
             label: Text(_isListening ? 'Stop' : 'Ngomong'),
             onPressed: _isListening ? _stopListening : _startListening,
           ),
+          ElevatedButton.icon(
+            icon: Icon(Icons.camera_alt),
+            label: Text('Foto Struk'),
+            onPressed: _pickAndProcessImage,
+          ),
+
           const SizedBox(height: 50),
         ],
       ),
