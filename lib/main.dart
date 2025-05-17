@@ -13,8 +13,8 @@ import 'package:sqflite/sqflite.dart';
 import 'package:intl/intl.dart'; // Tambahkan ini
 import 'package:intl/date_symbol_data_local.dart';
 
-import 'expense.dart';
-import 'expense_database.dart'; // Tambahkan ini
+import 'todo.dart';
+import 'todo_database.dart'; // Tambahkan ini
 
 
 // ===== Database Helper =====
@@ -257,7 +257,7 @@ class _HomePageState extends State<HomePage> {
 
     if (tempExpenses.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tidak ada data belanja valid ditemukan')),
+        const SnackBar(content: Text('Tidak ada data valid ditemukan')),
       );
       return;
     }
@@ -267,7 +267,7 @@ class _HomePageState extends State<HomePage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Konfirmasi Data Belanja'),
+          title: const Text('Konfirmasi Todo List'),
           content: StatefulBuilder(
             builder: (context, setState) {
               return SizedBox(
@@ -488,11 +488,7 @@ class _HomePageState extends State<HomePage> {
             label: Text(_isListening ? 'Stop' : 'Ngomong'),
             onPressed: _isListening ? _stopListening : _startListening,
           ),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.camera_alt),
-            label: const Text("Foto Struk"),
-            onPressed: _pickAndCropImage,
-          ),
+
 
 
           const SizedBox(height: 50),

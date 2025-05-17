@@ -1,6 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
-import 'expense.dart';
+import 'todo.dart';
 
 class ExpenseDatabase {
   static final ExpenseDatabase instance = ExpenseDatabase._init();
